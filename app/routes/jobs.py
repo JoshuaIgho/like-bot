@@ -1,11 +1,74 @@
+import os
 import sqlite3
-from typing import List
-from fastapi import APIRouter, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from app.db import get_db_connection
-from app.models import JobResponse, LikeRequest
+from app.models import JobResponse, LikeMyPostRequest, LikeMyPostResponse, LikeRequest
 
 router = APIRouter(prefix="/api", tags=["jobs"])
+
+
+@router.post("/like-my-post", response_model=LikeMyPostResponse)
+def like_my_post(req: LikeMyPostRequest):
+    url = req.url.strip()
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid URL format. Must start with http:// or https://",
+        )
+
+    default_max = int(os.getenv("MAX_LIKES_PER_POST", "50"))
+    max_likes = req.max_likes if (req.max_likes is not None and req.max_likes > 0) else default_max
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM accounts WHERE status = 'ok' ORDER BY id ASC")
+        accounts = cursor.fetchall()
+
+        if not accounts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active accounts available in pool",
+            )
+
+        enqueued = 0
+        skipped_already_liked = 0
+        job_ids: List[int] = []
+
+        for acc in accounts:
+            account_id = acc["id"]
+            if enqueued >= max_likes:
+                break
+
+            cursor.execute(
+                "SELECT id FROM jobs WHERE url = ? AND account_id = ?",
+                (url, account_id),
+            )
+            existing = cursor.fetchone()
+            if existing:
+                skipped_already_liked += 1
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO jobs (url, account_id, status, attempts)
+                    VALUES (?, ?, 'pending', 0)
+                    """,
+                    (url, account_id),
+                )
+                conn.commit()
+                job_ids.append(cursor.lastrowid)
+                enqueued += 1
+
+        return LikeMyPostResponse(
+            url=url,
+            enqueued=enqueued,
+            skipped_already_liked=skipped_already_liked,
+            job_ids=job_ids,
+        )
+    finally:
+        conn.close()
 
 
 @router.post("/like")
@@ -13,7 +76,6 @@ def create_like_job(req: LikeRequest):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        # Check account existence and status
         cursor.execute(
             "SELECT id, status FROM accounts WHERE id = ?", (req.account_id,)
         )
@@ -24,7 +86,6 @@ def create_like_job(req: LikeRequest):
                 detail="Account does not exist or status is not 'ok'",
             )
 
-        # Check existing job for url and account_id
         cursor.execute(
             """
             SELECT j.id, j.url, j.account_id, j.status, j.result, j.attempts, j.created_at, j.updated_at, a.username
@@ -49,7 +110,6 @@ def create_like_job(req: LikeRequest):
                 },
             )
 
-        # Insert new job
         cursor.execute(
             """
             INSERT INTO jobs (url, account_id, status, attempts)
@@ -65,20 +125,34 @@ def create_like_job(req: LikeRequest):
 
 
 @router.get("/jobs", response_model=List[JobResponse])
-def list_jobs():
+def list_jobs(url: Optional[str] = Query(None)):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT j.id, j.url, j.account_id, a.username as account_username, a.username as username,
-                   j.status, j.result, j.attempts, j.created_at, j.updated_at
-            FROM jobs j
-            JOIN accounts a ON j.account_id = a.id
-            ORDER BY j.id DESC
-            LIMIT 50
-            """
-        )
+        if url:
+            cursor.execute(
+                """
+                SELECT j.id, j.url, j.account_id, a.username as account_username, a.username as username,
+                       j.status, j.result, j.attempts, j.created_at, j.updated_at
+                FROM jobs j
+                JOIN accounts a ON j.account_id = a.id
+                WHERE j.url = ?
+                ORDER BY j.id DESC
+                LIMIT 50
+                """,
+                (url.strip(),),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT j.id, j.url, j.account_id, a.username as account_username, a.username as username,
+                       j.status, j.result, j.attempts, j.created_at, j.updated_at
+                FROM jobs j
+                JOIN accounts a ON j.account_id = a.id
+                ORDER BY j.id DESC
+                LIMIT 50
+                """
+            )
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     finally:

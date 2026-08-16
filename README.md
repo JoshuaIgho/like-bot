@@ -1,12 +1,12 @@
 # Post Like Bot
 
-Post Like Bot is a self-hosted, single-user web application designed to automatically like social media posts using authenticated sessions.
+Post Like Bot is a self-hosted, single-user web application designed to deliver automated likes to your social media posts using a pool of authenticated secondary accounts.
 
 ## What It Does
-- **Account Management**: Save and manage authenticated account sessions (with optional proxy settings).
-- **Post Liking**: Submit post URLs to be liked by your saved accounts.
-- **Background Worker**: Asynchronously processes pending jobs in the background through platform APIs (`instagrapi` for Instagram).
-- **Live Status UI**: Monitor account statuses and real-time job execution logs in a dark-mode web dashboard.
+- **Account Pool Management**: Save and manage authenticated pool accounts (with optional proxy settings). Each pool account represents a secondary account used to deliver likes.
+- **Like My Post**: Paste a URL of your own social media post, set an optional max likes cap, and the app enqueues one like job per available pool account.
+- **Background Worker**: Asynchronously executes like jobs across pool accounts using platform APIs (`instagrapi` for Instagram) with per-account pacing and deduplication.
+- **Live Status & Filtering**: Monitor live job execution and filter jobs by post URL in a dark-mode web UI.
 
 ---
 
@@ -31,10 +31,13 @@ Post Like Bot is a self-hosted, single-user web application designed to automati
    ```
 
 4. **Set environment variables (optional)**:
-   Copy `.env.example` to `.env` or export environment variables:
+   Copy `.env.example` to `.env`:
    ```bash
    cp .env.example .env
    ```
+   Key environment options:
+   - `MAX_LIKES_PER_POST`: Default cap for likes enqueued per post (default `50`).
+   - `MIN_DELAY` / `MAX_DELAY`: Delay in seconds between consecutive likes from the same account (defaults `30` and `90`).
 
 5. **Run the FastAPI application with Uvicorn**:
    ```bash
@@ -56,7 +59,7 @@ The application will be accessible at `http://localhost:8000`.
 
 ## How to Export Your Session for Instagram
 
-To export your session JSON using `instagrapi`:
+To export session JSON for each pool account using `instagrapi`:
 
 1. Open Python in your environment:
    ```python
@@ -64,7 +67,7 @@ To export your session JSON using `instagrapi`:
    from instagrapi import Client
 
    cl = Client()
-   cl.login("YOUR_INSTAGRAM_USERNAME", "YOUR_INSTAGRAM_PASSWORD")
+   cl.login("POOL_ACCOUNT_USERNAME", "POOL_ACCOUNT_PASSWORD")
 
    # Export settings dict containing authenticated cookies and session tokens
    settings = cl.get_settings()
@@ -74,23 +77,37 @@ To export your session JSON using `instagrapi`:
 
 ---
 
-## How to Add an Account in the UI
+## How to Add Pool Accounts in the UI
 
 1. Open the web interface at `http://localhost:8000`.
-2. Under the **Accounts** section:
-   - Enter your account **Username**.
+2. Under **Pool Accounts**:
+   - Enter the secondary account **Username**.
    - Paste the exported **Session JSON** into the textarea.
-   - (Optional) Enter a **Proxy** URL (e.g., `http://user:pass@proxy.example.com:8080`).
+   - (Optional) Enter a **Proxy** URL for that account (e.g., `http://user:pass@proxy.example.com:8080`).
 3. Click **Add Account**.
-4. The account will appear in the table with an `ok` status badge and become available in the post-liking dropdown.
+4. Repeat for as many secondary pool accounts as you have.
+
+> **Note**: Each pool account requires its own distinct session JSON. The intended usage is adding secondary/alt accounts into the pool so they can deliver likes to your main post.
+
+---
+
+## How to Use "Like My Post"
+
+1. In the **Like My Post (Pool)** section:
+   - Paste the URL of your post (e.g., `https://www.instagram.com/p/...`).
+   - Set **Max Likes (Cap)** (prefilled with `MAX_LIKES_PER_POST` default, e.g. `50`).
+2. Click **Send Likes**.
+3. The app will enqueue 1 pending like job per available `ok` pool account up to your max likes cap.
+4. Accounts that have already liked that post URL will automatically be skipped to avoid duplicate liking.
+5. In the **Live Jobs** table, you can see real-time progress or filter jobs by post URL.
 
 ---
 
 ## Worker Pacing and Exception Handling
 
-- **Pacing**: After an account completes a like job, the background worker waits a random delay between `MIN_DELAY` (default 30 seconds) and `MAX_DELAY` (default 90 seconds) before executing the next like from that same account. No two likes from the same account occur closer than `MIN_DELAY` apart.
-- **Action Block Handling**: If the platform raises an action block exception (`ChallengeRequired`, `FeedbackRequired`, `LoginRequired`, `ClientThrottledError`, etc.), the account status is updated to `action_blocked` and further jobs for that account are suspended.
-- **Retries**: For transient errors (e.g. temporary network timeouts), the job increments its attempt counter and retries up to `MAX_ATTEMPTS` (default 2) before marking the job as `failed`.
+- **Pacing**: After an account completes a like job, the background worker waits a random delay between `MIN_DELAY` (default 30 seconds) and `MAX_DELAY` (default 90 seconds) before executing the next like from that same account. Jobs for different accounts in the pool run concurrently.
+- **Action Block Handling**: If a pool account encounters an action block exception (`ChallengeRequired`, `FeedbackRequired`, `LoginRequired`, `ClientThrottledError`, etc.), its status is updated to `action_blocked` and no further jobs are assigned to it.
+- **Retries**: For transient network errors, jobs retry up to `MAX_ATTEMPTS` (default 2) before being marked as `failed`.
 
 ---
 

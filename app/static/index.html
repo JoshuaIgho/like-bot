@@ -95,7 +95,7 @@
             color: var(--text-color);
         }
 
-        input[type="text"], select, textarea {
+        input[type="text"], input[type="number"], select, textarea {
             width: 100%;
             padding: 0.625rem 0.75rem;
             background-color: var(--input-bg);
@@ -173,7 +173,6 @@
             background-color: rgba(255, 255, 255, 0.02);
             color: var(--text-muted);
             font-weight: 600;
-
         }
 
         .badge {
@@ -221,22 +220,50 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        .filter-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .filter-bar input {
+            max-width: 400px;
+        }
     </style>
 </head>
 <body>
     <header>
         <h1>Post Like Bot</h1>
-        <p>Self-hosted single-user post liking tool</p>
+        <p>Deliver likes to your post using your pool of accounts</p>
     </header>
 
     <div class="grid grid-2">
+        <!-- PRIMARY Section: Like my post -->
+        <div class="card">
+            <h2>Like My Post (Pool)</h2>
+            <form id="like-my-post-form">
+                <div class="form-group">
+                    <label for="pool-url">Post URL</label>
+                    <input type="text" id="pool-url" required placeholder="https://www.instagram.com/p/...">
+                </div>
+                <div class="form-group">
+                    <label for="pool-max-likes">Max Likes (Cap)</label>
+                    <input type="number" id="pool-max-likes" value="50" min="1" max="500">
+                </div>
+                <button type="submit">Send Likes</button>
+                <div id="pool-msg"></div>
+            </form>
+        </div>
+
         <!-- Section: Accounts -->
         <div class="card">
-            <h2>Accounts</h2>
+            <h2>Pool Accounts</h2>
             <form id="add-account-form">
                 <div class="form-group">
                     <label for="acc-username">Username</label>
-                    <input type="text" id="acc-username" required placeholder="e.g. my_instagram_handle">
+                    <input type="text" id="acc-username" required placeholder="e.g. pool_account_1">
                 </div>
                 <div class="form-group">
                     <label for="acc-session">Session JSON</label>
@@ -265,30 +292,16 @@
                 </table>
             </div>
         </div>
-
-        <!-- Section: Like a Post -->
-        <div class="card">
-            <h2>Like a Post</h2>
-            <form id="like-form">
-                <div class="form-group">
-                    <label for="like-url">Post URL</label>
-                    <input type="text" id="like-url" required placeholder="https://www.instagram.com/p/...">
-                </div>
-                <div class="form-group">
-                    <label for="like-account">Account</label>
-                    <select id="like-account" required>
-                        <option value="">Select an active account</option>
-                    </select>
-                </div>
-                <button type="submit">Like It</button>
-                <div id="like-msg"></div>
-            </form>
-        </div>
     </div>
 
     <!-- Section: Jobs -->
     <div class="card">
         <h2>Live Jobs</h2>
+        <div class="filter-bar">
+            <input type="text" id="jobs-filter-url" placeholder="Filter jobs by post URL...">
+            <button type="button" onclick="fetchJobs()">Filter</button>
+            <button type="button" style="background-color: var(--input-bg); border: 1px solid var(--input-border);" onclick="clearJobsFilter()">Clear</button>
+        </div>
         <div style="overflow-x: auto;">
             <table>
                 <thead>
@@ -315,7 +328,6 @@
                 if (!res.ok) return;
                 const accounts = await res.json();
                 renderAccountsTable(accounts);
-                updateAccountSelect(accounts);
             } catch (err) {
                 console.error('Error fetching accounts:', err);
             }
@@ -324,7 +336,7 @@
         function renderAccountsTable(accounts) {
             const tbody = document.getElementById('accounts-table-body');
             if (accounts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No accounts added yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No accounts in pool yet.</td></tr>';
                 return;
             }
 
@@ -339,26 +351,8 @@
             `).join('');
         }
 
-        function updateAccountSelect(accounts) {
-            const select = document.getElementById('like-account');
-            const currentValue = select.value;
-            const okAccounts = accounts.filter(a => a.status === 'ok');
-
-            if (okAccounts.length === 0) {
-                select.innerHTML = '<option value="">No active accounts available</option>';
-                return;
-            }
-
-            let optionsHtml = '<option value="">Select an account</option>';
-            okAccounts.forEach(acc => {
-                const selected = String(acc.id) === String(currentValue) ? 'selected' : '';
-                optionsHtml += `<option value="${acc.id}" ${selected}>${escapeHtml(acc.username)}</option>`;
-            });
-            select.innerHTML = optionsHtml;
-        }
-
         async function deleteAccount(id) {
-            if (!confirm('Are you sure you want to delete this account?')) return;
+            if (!confirm('Are you sure you want to delete this account from pool?')) return;
             try {
                 const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
                 if (res.ok) {
@@ -392,7 +386,7 @@
                 const data = await res.json();
                 if (res.ok) {
                     msgDiv.className = 'msg-success';
-                    msgDiv.textContent = 'Account added successfully!';
+                    msgDiv.textContent = 'Account added to pool!';
                     document.getElementById('add-account-form').reset();
                     fetchAccounts();
                 } else {
@@ -405,40 +399,35 @@
             }
         });
 
-        document.getElementById('like-form').addEventListener('submit', async (e) => {
+        document.getElementById('like-my-post-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const msgDiv = document.getElementById('like-msg');
+            const msgDiv = document.getElementById('pool-msg');
             msgDiv.className = '';
             msgDiv.textContent = '';
 
-            const url = document.getElementById('like-url').value.trim();
-            const account_id = parseInt(document.getElementById('like-account').value, 10);
-
-            if (!account_id) {
-                msgDiv.className = 'msg-error';
-                msgDiv.textContent = 'Please select a valid account.';
-                return;
-            }
+            const url = document.getElementById('pool-url').value.trim();
+            const maxLikesInput = document.getElementById('pool-max-likes').value;
+            const max_likes = maxLikesInput ? parseInt(maxLikesInput, 10) : null;
 
             try {
-                const res = await fetch('/api/like', {
+                const res = await fetch('/api/like-my-post', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, account_id })
+                    body: JSON.stringify({ url, max_likes })
                 });
 
                 const data = await res.json();
                 if (res.ok) {
                     msgDiv.className = 'msg-success';
-                    msgDiv.textContent = `Job created! Job ID: ${data.job_id}`;
-                    document.getElementById('like-url').value = '';
+                    let text = `${data.enqueued} likes enqueued from pool accounts (Job IDs: ${data.job_ids.join(', ') || 'none'}).`;
+                    if (data.skipped_already_liked > 0) {
+                        text += ` (${data.skipped_already_liked} accounts skipped because they already liked this post)`;
+                    }
+                    msgDiv.textContent = text;
                     fetchJobs();
-                } else if (res.status === 409) {
-                    msgDiv.className = 'msg-error';
-                    msgDiv.textContent = `Job already exists for this post (Job ID: ${data.job_id}).`;
                 } else {
                     msgDiv.className = 'msg-error';
-                    msgDiv.textContent = data.detail || 'Failed to create like job.';
+                    msgDiv.textContent = data.detail || 'Failed to enqueue likes.';
                 }
             } catch (err) {
                 msgDiv.className = 'msg-error';
@@ -448,7 +437,13 @@
 
         async function fetchJobs() {
             try {
-                const res = await fetch('/api/jobs');
+                const filterUrl = document.getElementById('jobs-filter-url').value.trim();
+                let endpoint = '/api/jobs';
+                if (filterUrl) {
+                    endpoint += `?url=${encodeURIComponent(filterUrl)}`;
+                }
+
+                const res = await fetch(endpoint);
                 if (!res.ok) return;
                 const jobs = await res.json();
                 renderJobsTable(jobs);
@@ -457,10 +452,15 @@
             }
         }
 
+        function clearJobsFilter() {
+            document.getElementById('jobs-filter-url').value = '';
+            fetchJobs();
+        }
+
         function renderJobsTable(jobs) {
             const tbody = document.getElementById('jobs-table-body');
             if (jobs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No jobs yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No jobs found.</td></tr>';
                 return;
             }
 

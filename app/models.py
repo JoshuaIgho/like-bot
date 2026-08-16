@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
@@ -32,6 +32,18 @@ class AccountResponse(BaseModel):
 class LikeRequest(BaseModel):
     url: str
     account_id: int
+
+
+class LikeMyPostRequest(BaseModel):
+    url: str
+    max_likes: Optional[int] = None
+
+
+class LikeMyPostResponse(BaseModel):
+    url: str
+    enqueued: int
+    skipped_already_liked: int
+    job_ids: List[int]
 
 
 class JobResponse(BaseModel):
