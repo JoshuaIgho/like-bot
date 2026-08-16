@@ -1,0 +1,8 @@
+venv/
+bot.db
+*.db
+*.json
+.env
+__pycache__/
+*.pyc
+.pytest_cache/

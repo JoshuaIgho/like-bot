@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post Like Bot</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1e1e24;
+            --card-border: #2e2e38;
+            --text-color: #e4e4e7;
+            --text-muted: #a1a1aa;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --neutral: #71717a;
+            --input-bg: #18181b;
+            --input-border: #3f3f46;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+            padding: 2rem;
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 1rem;
+        }
+
+        header h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 900px) {
+            .grid-2 {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.375rem;
+            color: var(--text-color);
+        }
+
+        input[type="text"], select, textarea {
+            width: 100%;
+            padding: 0.625rem 0.75rem;
+            background-color: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 0.375rem;
+            color: var(--text-color);
+            font-size: 0.875rem;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            padding: 0.625rem 1.25rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.btn-danger {
+            background-color: var(--danger);
+            padding: 0.375rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        button.btn-danger:hover {
+            background-color: var(--danger-hover);
+        }
+
+        .msg-error {
+            color: var(--danger);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .msg-success {
+            color: var(--success);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--card-border);
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.02);
+            color: var(--text-muted);
+            font-weight: 600;
+
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-ok, .badge-done {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .badge-action_blocked, .badge-failed, .badge-blocked {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .badge-banned {
+            background-color: rgba(113, 113, 122, 0.2);
+            color: #a1a1aa;
+        }
+
+        .badge-invalid_session {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+        }
+
+        .badge-pending {
+            background-color: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+        }
+
+        .badge-running {
+            background-color: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+
+        .text-truncate {
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Post Like Bot</h1>
+        <p>Self-hosted single-user post liking tool</p>
+    </header>
+
+    <div class="grid grid-2">
+        <!-- Section: Accounts -->
+        <div class="card">
+            <h2>Accounts</h2>
+            <form id="add-account-form">
+                <div class="form-group">
+                    <label for="acc-username">Username</label>
+                    <input type="text" id="acc-username" required placeholder="e.g. my_instagram_handle">
+                </div>
+                <div class="form-group">
+                    <label for="acc-session">Session JSON</label>
+                    <textarea id="acc-session" required placeholder='{"cookie": ...}'></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="acc-proxy">Proxy (optional)</label>
+                    <input type="text" id="acc-proxy" placeholder="http://user:pass@proxy:port">
+                </div>
+                <button type="submit">Add Account</button>
+                <div id="acc-msg"></div>
+            </form>
+
+            <div style="margin-top: 1.5rem; overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accounts-table-body">
+                        <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Loading accounts...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section: Like a Post -->
+        <div class="card">
+            <h2>Like a Post</h2>
+            <form id="like-form">
+                <div class="form-group">
+                    <label for="like-url">Post URL</label>
+                    <input type="text" id="like-url" required placeholder="https://www.instagram.com/p/...">
+                </div>
+                <div class="form-group">
+                    <label for="like-account">Account</label>
+                    <select id="like-account" required>
+                        <option value="">Select an active account</option>
+                    </select>
+                </div>
+                <button type="submit">Like It</button>
+                <div id="like-msg"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Section: Jobs -->
+    <div class="card">
+        <h2>Live Jobs</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>URL</th>
+                        <th>Account</th>
+                        <th>Status</th>
+                        <th>Result / Error</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="jobs-table-body">
+                    <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading jobs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function fetchAccounts() {
+            try {
+                const res = await fetch('/api/accounts');
+                if (!res.ok) return;
+                const accounts = await res.json();
+                renderAccountsTable(accounts);
+                updateAccountSelect(accounts);
+            } catch (err) {
+                console.error('Error fetching accounts:', err);
+            }
+        }
+
+        function renderAccountsTable(accounts) {
+            const tbody = document.getElementById('accounts-table-body');
+            if (accounts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No accounts added yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = accounts.map(acc => `
+                <tr>
+                    <td><strong>${escapeHtml(acc.username)}</strong></td>
+                    <td><span class="badge badge-${escapeHtml(acc.status)}">${escapeHtml(acc.status)}</span></td>
+                    <td>
+                        <button class="btn-danger" onclick="deleteAccount(${acc.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateAccountSelect(accounts) {
+            const select = document.getElementById('like-account');
+            const currentValue = select.value;
+            const okAccounts = accounts.filter(a => a.status === 'ok');
+
+            if (okAccounts.length === 0) {
+                select.innerHTML = '<option value="">No active accounts available</option>';
+                return;
+            }
+
+            let optionsHtml = '<option value="">Select an account</option>';
+            okAccounts.forEach(acc => {
+                const selected = String(acc.id) === String(currentValue) ? 'selected' : '';
+                optionsHtml += `<option value="${acc.id}" ${selected}>${escapeHtml(acc.username)}</option>`;
+            });
+            select.innerHTML = optionsHtml;
+        }
+
+        async function deleteAccount(id) {
+            if (!confirm('Are you sure you want to delete this account?')) return;
+            try {
+                const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    fetchAccounts();
+                    fetchJobs();
+                } else {
+                    alert('Failed to delete account.');
+                }
+            } catch (err) {
+                console.error('Error deleting account:', err);
+            }
+        }
+
+        document.getElementById('add-account-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msgDiv = document.getElementById('acc-msg');
+            msgDiv.className = '';
+            msgDiv.textContent = '';
+
+            const username = document.getElementById('acc-username').value.trim();
+            const session_json = document.getElementById('acc-session').value.trim();
+            const proxy = document.getElementById('acc-proxy').value.trim() || null;
+
+            try {
+                const res = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, session_json, proxy })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    msgDiv.className = 'msg-success';
+                    msgDiv.textContent = 'Account added successfully!';
+                    document.getElementById('add-account-form').reset();
+                    fetchAccounts();
+                } else {
+                    msgDiv.className = 'msg-error';
+                    msgDiv.textContent = data.detail || 'Failed to add account.';
+                }
+            } catch (err) {
+                msgDiv.className = 'msg-error';
+                msgDiv.textContent = 'Network or server error.';
+            }
+        });
+
+        document.getElementById('like-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msgDiv = document.getElementById('like-msg');
+            msgDiv.className = '';
+            msgDiv.textContent = '';
+
+            const url = document.getElementById('like-url').value.trim();
+            const account_id = parseInt(document.getElementById('like-account').value, 10);
+
+            if (!account_id) {
+                msgDiv.className = 'msg-error';
+                msgDiv.textContent = 'Please select a valid account.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/like', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, account_id })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    msgDiv.className = 'msg-success';
+                    msgDiv.textContent = `Job created! Job ID: ${data.job_id}`;
+                    document.getElementById('like-url').value = '';
+                    fetchJobs();
+                } else if (res.status === 409) {
+                    msgDiv.className = 'msg-error';
+                    msgDiv.textContent = `Job already exists for this post (Job ID: ${data.job_id}).`;
+                } else {
+                    msgDiv.className = 'msg-error';
+                    msgDiv.textContent = data.detail || 'Failed to create like job.';
+                }
+            } catch (err) {
+                msgDiv.className = 'msg-error';
+                msgDiv.textContent = 'Network or server error.';
+            }
+        });
+
+        async function fetchJobs() {
+            try {
+                const res = await fetch('/api/jobs');
+                if (!res.ok) return;
+                const jobs = await res.json();
+                renderJobsTable(jobs);
+            } catch (err) {
+                console.error('Error fetching jobs:', err);
+            }
+        }
+
+        function renderJobsTable(jobs) {
+            const tbody = document.getElementById('jobs-table-body');
+            if (jobs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No jobs yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = jobs.map(job => `
+                <tr>
+                    <td><strong>#${job.id}</strong></td>
+                    <td class="text-truncate" title="${escapeHtml(job.url)}"><a href="${escapeHtml(job.url)}" target="_blank" style="color: var(--primary);">${escapeHtml(job.url)}</a></td>
+                    <td>${escapeHtml(job.account_username || job.username || 'Unknown')}</td>
+                    <td><span class="badge badge-${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
+                    <td class="text-truncate" title="${escapeHtml(job.result || '')}">${escapeHtml(job.result || '-')}</td>
+                    <td>${escapeHtml(formatDate(job.created_at))}</td>
+                </tr>
+            `).join('');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            return dateStr.replace('T', ' ').split('.')[0];
+        }
+
+        // Initial load
+        fetchAccounts();
+        fetchJobs();
+
+        // Auto-refresh every 2s when tab is visible
+        setInterval(() => {
+            if (!document.hidden) {
+                fetchJobs();
+                fetchAccounts();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
