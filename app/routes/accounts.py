@@ -62,13 +62,23 @@ def delete_account(account_id: int):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM accounts WHERE id = ?", (account_id,))
-        row = cursor.fetchone()
-        if not row:
+        cursor.execute("SELECT id, username FROM accounts WHERE id = ?", (account_id,))
+        account = cursor.fetchone()
+        if not account:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Account not found",
             )
+        # Preserve historical username and set account_id = NULL on jobs
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET account_id = NULL,
+                account_username = COALESCE(account_username, ?)
+            WHERE account_id = ?
+            """,
+            (account["username"], account_id),
+        )
         cursor.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
         conn.commit()
         return {"status": "ok"}

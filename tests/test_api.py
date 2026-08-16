@@ -72,6 +72,42 @@ def test_accounts_crud():
     assert len(res_list_after.json()) == 0
 
 
+def test_delete_account_preserves_jobs():
+    client = TestClient(app)
+
+    # Create account and job
+    acc_res = client.post(
+        "/api/accounts",
+        json={
+            "username": "historical_user",
+            "session_json": json.dumps({"sessionid": "abc"}),
+        },
+    )
+    assert acc_res.status_code == 201
+    acc_id = acc_res.json()["id"]
+
+    url = "https://www.instagram.com/p/HISTORICAL_POST/"
+    like_res = client.post("/api/like", json={"url": url, "account_id": acc_id})
+    assert like_res.status_code == 200
+
+    # Delete the account
+    del_res = client.delete(f"/api/accounts/{acc_id}")
+    assert del_res.status_code == 200
+
+    # GET /api/accounts must no longer return the deleted account
+    accs_res = client.get("/api/accounts")
+    assert accs_res.status_code == 200
+    assert len(accs_res.json()) == 0
+
+    # GET /api/jobs must still return historical job associated with deleted account
+    jobs_res = client.get("/api/jobs")
+    assert jobs_res.status_code == 200
+    jobs = jobs_res.json()
+    assert len(jobs) == 1
+    assert jobs[0]["url"] == url
+    assert jobs[0]["account_username"] == "historical_user"
+
+
 def test_pool_like():
     client = TestClient(app)
 

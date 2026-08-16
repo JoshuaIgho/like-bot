@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT NOT NULL,
-    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    account_username TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     result TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,
